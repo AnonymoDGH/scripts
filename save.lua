@@ -2,7 +2,7 @@
 --!optimize 2
 --[[
     ╔══════════════════════════════════════════════╗
-    ║  ULTRA SAVE INSTANCE v2.0                   ║
+    ║  ULTRA SAVE INSTANCE v2.1                   ║
     ║  Copia juegos completos listos para publicar ║
     ║  https://discord.gg/wx4ThpAsmw              ║
     ╚══════════════════════════════════════════════╝
@@ -303,7 +303,6 @@ end
 -- ============================================
 local AutoFixes = {}
 
--- Fix 1: Reparar Chat
 AutoFixes.FixChat = function()
     return [[
 -- AUTO-FIX: Chat System
@@ -318,7 +317,6 @@ print("✅ Chat limpiado")
 ]]
 end
 
--- Fix 2: Habilitar Spawn
 AutoFixes.FixSpawn = function()
     return [[
 -- AUTO-FIX: Spawn System
@@ -349,7 +347,6 @@ end)
 ]]
 end
 
--- Fix 3: Reparar Cámara
 AutoFixes.FixCamera = function()
     return [[
 -- AUTO-FIX: Camera System
@@ -370,7 +367,6 @@ end)
 ]]
 end
 
--- Fix 4: Limpiar CoreGui referencias
 AutoFixes.FixCoreGui = function()
     return [[
 -- AUTO-FIX: Limpiar referencias a CoreGui
@@ -387,7 +383,6 @@ end
 ]]
 end
 
--- Fix 5: Reparar Colisiones
 AutoFixes.FixCollisions = function()
     return [[
 -- AUTO-FIX: Collision Fidelity
@@ -407,7 +402,7 @@ print("✅ Colisiones reparadas:", fixed)
 end
 
 -- ============================================
--- MOTOR PRINCIPAL DE GUARDADO
+-- MOTOR PRINCIPAL DE GUARDADO (YIELD COOPERATIVO)
 -- ============================================
 local function UltraSaveInstance(options)
     options = options or {}
@@ -421,6 +416,7 @@ local function UltraSaveInstance(options)
         Timeout = options.Timeout or 15,
         ShowProgress = options.ShowProgress ~= false,
         Objects = options.Objects or {},
+        yieldRate = options.YieldRate or 500, -- CEDE CADA N INSTANCIAS
     }
     
     print("🚀 ULTRA SAVE INSTANCE - Iniciando...")
@@ -459,8 +455,22 @@ local function UltraSaveInstance(options)
         end
         return refs[inst]
     end
-    
-    -- Función para guardar instancia
+
+    -- CUENTA INSTANCIAS TOTALES CON YIELD
+    local _count_checked = 0
+    local function CountInstances(inst)
+        _count_checked = _count_checked + 1
+        if _count_checked % config.yieldRate == 0 then
+            task_wait()
+        end
+        local count = 1
+        for _, child in inst:GetChildren() do
+            count = count + CountInstances(child)
+        end
+        return count
+    end
+
+    -- GUARDA INSTANCIA (YIELD COOPERATIVO)
     local function SaveInstance(inst, depth)
         depth = depth or 0
         
@@ -518,24 +528,18 @@ local function UltraSaveInstance(options)
         for _, child in children do
             progress.current = progress.current + 1
             SaveInstance(child, depth + 1)
+            -- YIELD COOPERATIVO: Ceder cada X instancias
+            if progress.current % config.yieldRate == 0 then
+                task_wait()
+            end
         end
         
         -- Cerrar Item
         Write(string.rep("  ", depth) .. "</Item>\n")
     end
-    
-    -- Contar instancias totales
-    local function CountInstances(inst)
-        local count = 1
-        for _, child in inst:GetChildren() do
-            count = count + CountInstances(child)
-        end
-        return count
-    end
-    
+
     -- Determinar qué guardar
     local toSave = {}
-    
     if #config.Objects > 0 then
         toSave = config.Objects
     elseif config.Mode == "full" then
@@ -562,7 +566,7 @@ local function UltraSaveInstance(options)
     
     -- Escribir header
     Write('<?xml version="1.0" encoding="utf-8"?>\n')
-    Write('<!-- ★ ULTRA SAVE INSTANCE v2.0 - Game Ready for Publishing -->\n')
+    Write('<!-- ★ ULTRA SAVE INSTANCE v2.1 - Game Ready for Publishing -->\n')
     Write('<roblox version="4">\n')
     
     -- Guardar objetos
@@ -773,7 +777,7 @@ getgenv().SaveGUI = CreateGUI
 -- ============================================
 print([[
 ╔══════════════════════════════════════════════╗
-║  🚀 ULTRA SAVE INSTANCE v2.0 CARGADO        ║
+║  🚀 ULTRA SAVE INSTANCE v2.1 CARGADO        ║
 ╚══════════════════════════════════════════════╝
 
 📚 COMANDOS DISPONIBLES:
@@ -792,7 +796,8 @@ print([[
   UltraSave({
       FilePath = "MiJuego",
       Mode = "full",
-      AutoFix = true
+      AutoFix = true,
+      YieldRate = 500       -- Puedes ajustar esto si quieres
   })
 
 ✨ CARACTERÍSTICAS:
@@ -800,6 +805,7 @@ print([[
   ✅ Decompilación inteligente
   ✅ Listo para publicar en Studio
   ✅ Archivos optimizados
+  ✅ NO se congela nunca (yield automático)
 ]])
 
 return {
@@ -807,5 +813,3 @@ return {
     Quick = QuickSave,
     GUI = CreateGUI
 }
-
-
